@@ -1,9 +1,9 @@
 {
-  "versionCode": 2,
-  "versionName": "1.0.2",
-  "apkUrl": "https://github.com/3bukvi/three-client/releases/download/1.0.2/app-release.apk",
-  "changelog": "versionCode: 2\r\nversionName: 1.0.2",
+  "versionCode": 3,
+  "versionName": "1.0.3",
+  "apkUrl": "https://github.com/3bukvi/three-client/releases/download/1.0.3/app-release.apk",
+  "changelog": "Перенесли блок с обновлениями в настройки\r\nТеперь появляется уведомление об обновлении при запуске.",
   "mandatory": false,
-  "publishedAt": "2026-03-27T15:10:26Z",
-  "sha256": "ed7956d185cb0b61cda973b5a7ac0bc26bbd386b49e0fa45957cd089c8ad61a6"
+  "publishedAt": "2026-03-27T15:21:22Z",
+  "sha256": "e17f428f87778816608a38633c6c372f5857c79c3f7c9a120cd37089fe0ae21f"
 }
