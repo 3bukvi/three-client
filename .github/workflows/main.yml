@@ -10,6 +10,14 @@ on:
         description: Release tag to publish into update.json
         required: true
         type: string
+      version_code:
+        description: Android versionCode for this release
+        required: true
+        type: string
+      version_name:
+        description: Android versionName for this release, defaults to tag without leading v
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -67,18 +75,36 @@ jobs:
             core.setOutput('published_at', release.published_at || '');
             core.setOutput('body', release.body || '');
 
-      - name: Read version from release tag
+      - name: Resolve version metadata
         id: version
         shell: bash
+        env:
+          RELEASE_BODY: ${{ steps.release.outputs.body }}
+          INPUT_VERSION_CODE: ${{ inputs.version_code }}
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
         run: |
           set -euo pipefail
 
-          APP_BUILD_GRADLE="$(git show "refs/tags/${RELEASE_TAG}:app/build.gradle.kts")"
-          VERSION_CODE="$(printf '%s\n' "$APP_BUILD_GRADLE" | sed -nE 's/.*versionCode = ([0-9]+).*/\1/p' | head -n1)"
-          VERSION_NAME="$(printf '%s\n' "$APP_BUILD_GRADLE" | sed -nE 's/.*versionName = "([^"]+)".*/\1/p' | head -n1)"
+          DERIVED_VERSION_NAME="${RELEASE_TAG#v}"
+          VERSION_CODE="${INPUT_VERSION_CODE:-}"
+          VERSION_NAME="${INPUT_VERSION_NAME:-}"
+
+          if [[ -z "$VERSION_CODE" ]]; then
+            VERSION_CODE="$(printf '%s\n' "${RELEASE_BODY}" | sed -nE 's/^[[:space:]]*[Vv]ersion[ _-]?[Cc]ode[[:space:]]*[:=][[:space:]]*([0-9]+)[[:space:]]*$/\1/p' | head -n1)"
+          fi
+
+          if [[ -z "$VERSION_NAME" ]]; then
+            VERSION_NAME="$(printf '%s\n' "${RELEASE_BODY}" | sed -nE 's/^[[:space:]]*[Vv]ersion[ _-]?[Nn]ame[[:space:]]*[:=][[:space:]]*([^[:space:]].*)$/\1/p' | head -n1)"
+          fi
+
+          if [[ -z "$VERSION_NAME" ]]; then
+            VERSION_NAME="$DERIVED_VERSION_NAME"
+          fi
 
           if [[ -z "$VERSION_CODE" || -z "$VERSION_NAME" ]]; then
-            echo "Could not parse versionCode/versionName from app/build.gradle.kts at tag ${RELEASE_TAG}" >&2
+            echo "Could not resolve versionCode/versionName." >&2
+            echo "For release-triggered runs, add lines like 'versionCode: 2' and optionally 'versionName: 1.0.2' to the release description." >&2
+            echo "For manual runs, pass version_code and optionally version_name as workflow inputs." >&2
             exit 1
           fi
 
