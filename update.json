@@ -1,9 +1,9 @@
 {
-  "versionCode": 1,
-  "versionName": "1.0.1",
-  "apkUrl": "https://github.com/3bukvi/three-client/releases/download/v1/app-release.apk",
-  "changelog": null,
+  "versionCode": 2,
+  "versionName": "1.0.2",
+  "apkUrl": "https://github.com/3bukvi/three-client/releases/download/1.0.2/app-release.apk",
+  "changelog": "versionCode: 2\r\nversionName: 1.0.2",
   "mandatory": false,
-  "publishedAt": "2026-03-27T14:47:44Z",
-  "sha256": "c63b85f021635772c1cd82afe612f710fb82505cf003483e35660eb8b5f7b1b4"
+  "publishedAt": "2026-03-27T15:10:26Z",
+  "sha256": "ed7956d185cb0b61cda973b5a7ac0bc26bbd386b49e0fa45957cd089c8ad61a6"
 }
