@@ -1,9 +1,6 @@
 name: Publish Update Manifest
 
 on:
-  release:
-    types:
-      - published
   workflow_dispatch:
     inputs:
       tag:
@@ -103,7 +100,6 @@ jobs:
 
           if [[ -z "$VERSION_CODE" || -z "$VERSION_NAME" ]]; then
             echo "Could not resolve versionCode/versionName." >&2
-            echo "For release-triggered runs, add lines like 'versionCode: 2' and optionally 'versionName: 1.0.2' to the release description." >&2
             echo "For manual runs, pass version_code and optionally version_name as workflow inputs." >&2
             exit 1
           fi
