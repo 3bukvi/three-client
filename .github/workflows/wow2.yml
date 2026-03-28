@@ -1,0 +1,182 @@
+name: Publish Update Manifest
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish into update.json
+        required: true
+        type: string
+      version_code:
+        description: Android versionCode for this release
+        required: true
+        type: string
+      version_name:
+        description: Android versionName for this release, defaults to tag without leading v
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish-update-manifest:
+    runs-on: ubuntu-latest
+
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Resolve release asset
+        id: release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const releaseTag = process.env.RELEASE_TAG;
+            if (!releaseTag) {
+              core.setFailed('Release tag is required.');
+              return;
+            }
+
+            let release = context.payload.release;
+            if (!release) {
+              const response = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: releaseTag,
+              });
+              release = response.data;
+            }
+
+            const apkAssets = release.assets.filter((asset) => asset.name.endsWith('.apk'));
+            if (apkAssets.length === 0) {
+              core.setFailed(`Release ${release.tag_name} does not contain an APK asset.`);
+              return;
+            }
+
+            const preferredAsset =
+              apkAssets.find((asset) => !asset.name.toLowerCase().includes('debug')) ||
+              apkAssets[0];
+
+            core.setOutput('tag', release.tag_name);
+            core.setOutput('apk_name', preferredAsset.name);
+            core.setOutput('asset_api_url', preferredAsset.url);
+            core.setOutput('browser_download_url', preferredAsset.browser_download_url);
+            core.setOutput('published_at', release.published_at || '');
+            core.setOutput('body', release.body || '');
+
+      - name: Resolve version metadata
+        id: version
+        shell: bash
+        env:
+          RELEASE_BODY: ${{ steps.release.outputs.body }}
+          INPUT_VERSION_CODE: ${{ inputs.version_code }}
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+        run: |
+          set -euo pipefail
+
+          DERIVED_VERSION_NAME="${RELEASE_TAG#v}"
+          VERSION_CODE="${INPUT_VERSION_CODE:-}"
+          VERSION_NAME="${INPUT_VERSION_NAME:-}"
+
+          if [[ -z "$VERSION_CODE" ]]; then
+            VERSION_CODE="$(printf '%s\n' "${RELEASE_BODY}" | sed -nE 's/^[[:space:]]*[Vv]ersion[ _-]?[Cc]ode[[:space:]]*[:=][[:space:]]*([0-9]+)[[:space:]]*$/\1/p' | head -n1)"
+          fi
+
+          if [[ -z "$VERSION_NAME" ]]; then
+            VERSION_NAME="$(printf '%s\n' "${RELEASE_BODY}" | sed -nE 's/^[[:space:]]*[Vv]ersion[ _-]?[Nn]ame[[:space:]]*[:=][[:space:]]*([^[:space:]].*)$/\1/p' | head -n1)"
+          fi
+
+          if [[ -z "$VERSION_NAME" ]]; then
+            VERSION_NAME="$DERIVED_VERSION_NAME"
+          fi
+
+          if [[ -z "$VERSION_CODE" || -z "$VERSION_NAME" ]]; then
+            echo "Could not resolve versionCode/versionName." >&2
+            echo "For manual runs, pass version_code and optionally version_name as workflow inputs." >&2
+            exit 1
+          fi
+
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Download APK asset
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          curl -L \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            "${{ steps.release.outputs.asset_api_url }}" \
+            -o "${{ steps.release.outputs.apk_name }}"
+
+      - name: Calculate SHA-256
+        id: sha
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SHA256="$(sha256sum "${{ steps.release.outputs.apk_name }}" | awk '{print $1}')"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Generate update.json
+        shell: bash
+        env:
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          APK_URL: ${{ steps.release.outputs.browser_download_url }}
+          CHANGELOG: ${{ steps.release.outputs.body }}
+          PUBLISHED_AT: ${{ steps.release.outputs.published_at }}
+          SHA256: ${{ steps.sha.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          changelog = os.environ.get("CHANGELOG", "").strip()
+
+          manifest = {
+              "versionCode": int(os.environ["VERSION_CODE"]),
+              "versionName": os.environ["VERSION_NAME"],
+              "apkUrl": os.environ["APK_URL"],
+              "changelog": changelog or None,
+              "mandatory": False,
+              "publishedAt": os.environ.get("PUBLISHED_AT", "").strip() or None,
+              "sha256": os.environ["SHA256"],
+          }
+
+          Path("update.json").write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Commit update.json
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add update.json
+
+          if git diff --cached --quiet; then
+            echo "update.json is already up to date"
+            exit 0
+          fi
+
+          git commit -m "chore: update manifest for ${RELEASE_TAG}"
+          git push origin "HEAD:${DEFAULT_BRANCH}"
