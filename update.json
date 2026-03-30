@@ -1,9 +1,9 @@
 {
-  "versionCode": 7,
-  "versionName": "1.0.7",
-  "apkUrl": "https://github.com/3bukvi/three-client/releases/download/1.0.7/app-release.apk",
-  "changelog": "Улучшена аналитика для приложения\r\nМелкие правки",
+  "versionCode": 8,
+  "versionName": "1.1.0",
+  "apkUrl": "https://github.com/3bukvi/three-client/releases/download/1.1.0/app-release.apk",
+  "changelog": "Поддержка мультиподписок, возможность отправить логи для исправления ошибок.",
   "mandatory": false,
-  "publishedAt": "2026-03-28T01:05:36Z",
-  "sha256": "698d89c57763df3d61d0633170bbd7c0dd9f8801a1bd4403a5e45b8980ac2b95"
+  "publishedAt": "2026-03-30T04:40:54Z",
+  "sha256": "4dd6baec3419ca6de1e8f8efa6acd5d699828a95d85674ac96101baa32dbb942"
 }
